@@ -1,0 +1,14 @@
+"0","mars_train
+"
+"2","This tuning result has notes. Example notes on model fitting include:
+preprocessor 1/1: the standard deviation is zero, The correlation matrix has missing values. 3 columns were excluded from the filter.
+preprocessor 1/1: the standard deviation is zero, The correlation matrix has missing values. 3 columns were excluded from the filter.
+preprocessor 1/1: the standard deviation is zero, The correlation matrix has missing values. 3 columns were excluded from the filter."
+"1","# Resampling results
+"
+"1","#"
+"1"," "
+"1","Rolling origin forecast resampling"
+"1"," "
+"1","
+"

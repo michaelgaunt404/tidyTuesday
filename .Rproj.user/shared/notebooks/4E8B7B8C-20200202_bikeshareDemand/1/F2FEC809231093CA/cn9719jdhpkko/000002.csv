@@ -1,0 +1,11 @@
+"0","weather = read.csv(""./data/austin_weather.csv"", 
+                        header = TRUE, stringsAsFactors = FALSE) %>%  
+  janitor::clean_names() %>%  
+  mutate(date = date %>%  
+           as_date())
+"
+"2","Error: Problem with `mutate()` input `date`.
+[31mx[39m could not find function ""as_date""
+[34mi[39m Input `date` is `date %>% as_date()`.
+[90mRun `rlang::last_error()` to see where the error occurred.[39m
+"

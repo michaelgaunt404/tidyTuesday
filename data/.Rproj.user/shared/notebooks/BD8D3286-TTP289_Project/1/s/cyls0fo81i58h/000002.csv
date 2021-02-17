@@ -1,0 +1,5 @@
+"0","station.data = read.csv(""./Data/austin_bikeshare_stations.csv"", header = TRUE) 
+"
+"2","cannot open file './Data/austin_bikeshare_stations.csv': No such file or directory"
+"2","Error in file(file, ""rt"") : cannot open the connection
+"

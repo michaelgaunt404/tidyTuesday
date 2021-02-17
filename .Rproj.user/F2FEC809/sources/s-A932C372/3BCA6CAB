@@ -1,0 +1,27 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1612323282648.000,
+    "dirty" : true,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "3BCA6CAB",
+    "lastKnownWriteTime" : 1613408986,
+    "last_content_update" : 1613534074710,
+    "path" : "~/050_projects/tidyTuesday/20200202_bikeshareDemand.Rmd",
+    "project_path" : "20200202_bikeshareDemand.Rmd",
+    "properties" : {
+        "cursorPosition" : "244,11",
+        "last_setup_crc32" : "A932C372bb338d19",
+        "scrollLine" : "215",
+        "tempName" : "Untitled1"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_markdown"
+}

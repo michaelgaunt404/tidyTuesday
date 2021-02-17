@@ -1,0 +1,21 @@
+"0","doParallel::registerDoParallel()
+
+
+
+tictoc::tic()
+# mars_train = mars_wrkfl %>%
+#   fit_resamples(
+#     resamples = folds,
+#     control = control_resamples(save_pred = TRUE, extract = get_model)
+#   )
+
+mars_tune = mars_wrkfl %>%
+  tune_grid(
+    resamples = folds,
+    grid = grid,
+    control = control_resamples(save_pred = TRUE, extract = get_model)
+  )
+tictoc::toc()
+"
+"1","320.4 sec elapsed
+"

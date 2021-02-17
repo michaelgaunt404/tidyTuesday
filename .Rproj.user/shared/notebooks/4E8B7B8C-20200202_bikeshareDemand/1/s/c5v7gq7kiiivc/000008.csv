@@ -1,0 +1,8 @@
+"0","mars_wrkfl %>%  
+  parameters() %>%  
+  pull_dials_object(""num_terms"")
+"
+"1","# Model Terms (quantitative)
+"
+"1","Range: [2, 5]
+"

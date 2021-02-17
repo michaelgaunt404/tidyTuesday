@@ -1,0 +1,22 @@
+{
+    "collab_server" : "",
+    "contents" : "---\ntitle: \"TTP 289 Bike Predicting\"\nauthor: \"Mike Gaunt\"\ndate: \"May 22, 2019\"\noutput: html_document\n---\n\n```{r echo = FALSE, results='hide', message=FALSE, warning=FALSE}\nlibrary(data.table) #for general data storage\nlibrary(chron) #dealing with time\n\n\nlibrary(magrittr)\nlibrary(dplyr)\nlibrary(naniar) #visualizing missing data \n\n```\n\n\n```{r setup, include=FALSE}\nknitr::opts_chunk$set(echo = TRUE)\n```\n\nImporting and cleaning data.\n```{r cache=TRUE}\nstation.data = read.csv(\"./Data/austin_bikeshare_stations.csv\", header = TRUE, stringsAsFactors = FALSE) \nbikeshare.data = read.csv(\"./Data/austin_bikeshare_trips.csv\", header = TRUE, stringsAsFactors = FALSE) \nweather.data = read.csv(\"./Data/austin_weather.csv\", header = TRUE, stringsAsFactors = FALSE) \n```\n\n```{r}\nstation.data =data.table(station.data)\ndim(station.data)\nstr(station.data)\ncolnames(station.data)\nhead(station.data)\nstation.data[,c(4:6)] =  lapply(station.data[,c(4:6)], as.factor)\n```\n\n```{r}\nbikeshare.data.50k = head(bikeshare.data,50000)\nglimpse(bikeshare.data.50k)\nvis_miss(bikeshare.data.50k)\n\nbikeshare.data.50k =data.table(bikeshare.data.50k)\ndim(bikeshare.data.50k)\nstr(bikeshare.data.50k)\ncolnames(bikeshare.data.50k)\nhead(bikeshare.data.50k)\nbikeshare.data.50k[,c(1,4,5,7,8,10)] =  lapply(bikeshare.data.50k[,c(1,4,5,7,8,10)], as.factor)\ntmp = bikeshare.data$checkout_time\ntmp = timestamp(bikeshare.data$checkout_time)\nbikeshare.data.50k$checkout_time = chron(times=bikeshare.data.50k$checkout_time)\nchron(times=bikeshare.data.50k$checkout_time)\nchron(bikeshare.data.50k$start_time)\nstr(x)\n?chron()\ntmp = t(as.data.frame(strsplit(bikeshare.data.50k$start_time,' '))) %>% \n  set_rownames(NULL) %>% \n  set_colnames(c(\"date\", \"timestamp\")) \n\nbikeshare.data.50k %>% \n  mutate(date = tmp$date)\n\n?t()\n  tail(\nrow.names(dtparts) = NULL\nthetimes = chron(dates=dtparts[,1],times=dtparts[,2],\n                  format=c('y-m-d','h:m:s'))\nthetimes, 200)\ntail(sort(thetimes), 200)\n```\n\n```{r}\ncolnames(station.data)\nprint(\"stop\")\ncolnames(bikeshare.data.50k)\nprint(\"stop\")\ncolnames(weather.data)\nelevation(input = as.data.frame(station.data), latitude = station.data$latitude, longitude = station.data$longitude)\npairs <- list(c(31.8496,-110.576060), c(29.15503,-103.59828))\nelevation(latlong=pairs, curlopts = list(verbose=TRUE), key = apikey)\n\napikey <- getOption(\"g_elevation_api\")\nkey <- name_suggest('Puma concolor')$key[1]\ndat <- occ_search(taxonKey=key, return='data', limit=300,\n  hasCoordinate=TRUE)\nhead( elevation(dat, key = apikey) )\n\n# Pass in a vector of lat's and a vector of long's\nelevation(latitude=dat$decimalLatitude, longitude=dat$decimalLongitude,\n  key = apikey)\n```\n\n```{r}\nlibrary(data.table)\nsummary(station.data)\n```\n\n\n```{r}\nsummary(bikehsare.data.50k)\nstr(bikehsare.data.50k)\n```\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n",
+    "created" : 1558547204462.000,
+    "dirty" : true,
+    "encoding" : "UTF-8",
+    "folds" : "94|6|97|0|\n",
+    "hash" : "1060235326",
+    "id" : "B559EA3F",
+    "lastKnownWriteTime" : 1558547617,
+    "last_content_update" : 1558573117568,
+    "path" : "~/10 Course Work/10 Spring 2019/TTP 289/Project/TTP289_Project.Rmd",
+    "project_path" : null,
+    "properties" : {
+        "last_setup_crc32" : "D5390962bb338d19",
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_markdown"
+}

@@ -1,0 +1,311 @@
+---
+title: "20210201_ml_sfTrees"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## GitHub Documents
+
+This is an R Markdown format used for publishing markdown documents to GitHub. When you click the **Knit** button all R code chunks are run and a markdown file (.md) suitable for publishing to GitHub is generated.
+
+## Import and set-up
+```{r}
+library(tidyverse)
+library(tidymodels)
+library(magrittr)
+library(tidyr)
+
+sf_trees <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-01-28/sf_trees.csv")
+
+trees_df <- sf_trees %>%
+  mutate(
+    legal_status = case_when(
+      legal_status == "DPW Maintained" ~ legal_status,
+      TRUE ~ "Other"
+    ),
+    plot_size = parse_number(plot_size)
+  ) %>%
+  select(-address, - tree_id) %>%
+  separate(species, into = c("family", "name"), sep = "::") %>% 
+  separate(site_info, into = c("loc_1", "loc_2", "loc_3"), sep = ":") %>% 
+  mutate(family = family %>%  
+           gsub("'.*", "\\1", . ), 
+         across(where(is.character), ~.x %>%  
+                  na_if("") %>%  
+                  str_trim() %>%  
+                  as.factor()), 
+         across(date, lubridate::as_date)) %>%
+  na.omit()
+
+trees_df %>%  
+  skimr::skim()
+```
+
+## Exploratory
+
+```{r}
+
+trees_df %>%  
+  ggplot(aes(latitude, longitude, color = legal_status)) +
+  geom_point(size = 0.5, alpha = 0.4) +
+  labs(color = NULL)
+
+trees_df %>% colnames()
+```
+
+```{r}
+trees_df %>%  
+  filter(name == "")
+
+trees_df %>%
+  count(legal_status, caretaker) %>%
+  add_count(caretaker, wt = n, name = "caretaker_count")
+
+trees_df %>%
+  count(family, sort = T)
+
+```
+
+## Model
+```{r}
+set.seed(123)
+trees_split <- initial_split(trees_df, strata = legal_status)
+trees_train <- training(trees_split)
+trees_test <- testing(trees_split)
+
+```
+
+## Make Recipe
+```{r}
+tree_rec <- recipe(legal_status ~ ., data = trees_train) %>%
+  # update_role(tree_id, new_role = "ID") %>%
+  step_nzv(all_predictors()) %>%
+  step_other(family, name, caretaker, threshold = 0.01) %>%
+  # step_other(site_info, threshold = 0.005) %>%
+  step_dummy(all_nominal(), -all_outcomes()) %>%
+  step_date(date, features = c("year")) %>%
+  step_rm(date) %>%
+  step_downsample(legal_status)
+
+#to take a look
+tree_rec %>%  
+  prep() %>%  
+  juice()
+```
+
+## Make Model
+```{r}
+rf_model = rand_forest(
+  mtry = tune(),
+  min_n = tune(),
+  trees = 1000) %>%
+  set_mode("classification") %>%  
+  set_engine("ranger")
+```
+
+```{r}
+trees_wrkfl = workflow() %>%  
+  add_recipe(tree_rec) %>%
+  add_model(rf_model)
+```
+
+```{r}
+folds = vfold_cv(trees_train, v = 10)
+```
+
+```{r}
+tictoc::tic()
+doParallel::registerDoParallel()
+
+
+rf_tuned = trees_wrkfl %>%
+  tune_grid(
+    resamples = folds,
+    grid = 10,
+    metrics = metric_set(roc_auc)
+  )
+tictoc::toc()
+
+rf_tuned %>%  
+  collect_metrics() %>%
+  filter(.metric == "roc_auc") %>%
+  select(mean, min_n, mtry) %>%
+  pivot_longer(min_n:mtry,
+    values_to = "value",
+    names_to = "parameter"
+  ) %>%
+  ggplot(aes(value, mean, color = parameter)) +
+  geom_point(show.legend = FALSE) +
+  facet_wrap(~parameter, scales = "free_x") +
+  labs(x = NULL, y = "AUC")
+
+jtune_res <- tune_grid(
+  trees_wrkfl,
+  resamples = folds,
+  grid = 3
+)
+
+rf_tuned %>%  
+  autoplot()
+  unnest(cols = ".metrics")
+
+```
+
+
+
+```{r}
+sisters_recipe <- recipe(age ~ ., data = sisters_other) %>%
+    step_normalize(all_predictors()) %>%
+    step_pca(all_predictors(), num_comp = tune())
+
+tree_spec <- decision_tree(
+    cost_complexity = tune(),
+    tree_depth = tune()
+) %>%
+    set_engine("rpart") %>%
+    set_mode("regression")
+
+tree_wf <- workflow() %>%
+    add_recipe(sisters_recipe) %>%
+    add_model(tree_spec)
+
+tree_grid <- grid_regular(num_comp(c(3, 12)),
+                          cost_complexity(),
+                          tree_depth(),
+                          levels = 5)
+
+tree_wf
+```
+
+
+
+
+
+
+```{r}
+library(tidyverse)
+
+sf_trees <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-01-28/sf_trees.csv")
+
+trees_df <- sf_trees %>%
+  mutate(
+    legal_status = case_when(
+      legal_status == "DPW Maintained" ~ legal_status,
+      TRUE ~ "Other"
+    ),
+    plot_size = parse_number(plot_size)
+  ) %>%
+  select(-address) %>%
+  na.omit() %>%
+  mutate_if(is.character, factor)
+
+set.seed(123)
+trees_split <- initial_split(trees_df, strata = legal_status)
+trees_train <- training(trees_split)
+trees_test <- testing(trees_split)
+
+tree_rec <- recipe(legal_status ~ ., data = trees_train) %>%
+  update_role(tree_id, new_role = "ID") %>%
+  step_other(species, caretaker, threshold = 0.01) %>%
+  step_other(site_info, threshold = 0.005) %>%
+  step_dummy(all_nominal(), -all_outcomes()) %>%
+  step_date(date, features = c("year")) %>%
+  step_rm(date) %>%
+  step_downsample(legal_status)
+
+tree_prep <- prep(tree_rec)
+juiced <- juice(tree_prep)
+
+tune_spec <- rand_forest(
+  mtry = tune(),
+  trees = 1000,
+  min_n = tune()
+) %>%
+  set_mode("classification") %>%
+  set_engine("ranger")
+
+tune_wf <- workflow() %>%
+  add_recipe(tree_rec) %>%
+  add_model(tune_spec)
+
+set.seed(234)
+trees_folds <- vfold_cv(trees_train)
+
+tictoc::tic()
+doParallel::registerDoParallel()
+
+set.seed(345)
+tune_res <- tune_grid(
+  tune_wf,
+  resamples = trees_folds,
+  grid = 20
+)
+tictoc::tic()
+
+tune_res %>%
+  collect_metrics() %>%
+  filter(.metric == "roc_auc") %>%
+  select(mean, min_n, mtry) %>%
+  pivot_longer(min_n:mtry,
+    values_to = "value",
+    names_to = "parameter"
+  ) %>%
+  ggplot(aes(value, mean, color = parameter)) +
+  geom_point(show.legend = FALSE) +
+  facet_wrap(~parameter, scales = "free_x") +
+  labs(x = NULL, y = "AUC")
+
+
+
+```
+
+```{r}
+tune_spec <- rand_forest(
+  mtry = tune(),
+  trees = 1000,
+  min_n = tune()
+) %>%
+  set_mode("classification") %>%
+  set_engine("ranger")
+
+glm_mdl = logistic_reg() %>%  
+  set_engine("glm")
+
+glm_wf <- workflow() %>%
+  add_recipe(tree_rec) %>%
+  add_model(glm_mdl)
+
+
+tictoc::tic()
+doParallel::registerDoParallel()
+
+set.seed(345)
+tune_res <- fit_resamples(
+  glm_wf,
+  resamples = trees_folds,
+  control <- control_resamples(save_pred = TRUE)
+)
+tictoc::tic()
+
+tune_res %>%
+  collect_metrics() %>%
+  filter(.metric == "roc_auc") %>%
+  select(mean, min_n, mtry) %>%
+  pivot_longer(min_n:mtry,
+    values_to = "value",
+    names_to = "parameter"
+  ) %>%
+  ggplot(aes(value, mean, color = parameter)) +
+  geom_point(show.legend = FALSE) +
+  facet_wrap(~parameter, scales = "free_x") +
+  labs(x = NULL, y = "AUC")
+```
+

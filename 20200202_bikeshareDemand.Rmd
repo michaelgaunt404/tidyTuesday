@@ -1,0 +1,312 @@
+---
+title: "20200202_bikeshareDemand"
+author: Mike Gaunt
+date: February 02, 2020
+output:
+  github_document:
+    fig_width: 5
+    fig_height: 5
+    dev: jpeg
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## GitHub Documents
+
+This is an R Markdown format used for publishing markdown documents to GitHub. When you click the **Knit** button all R code chunks are run and a markdown file (.md) suitable for publishing to GitHub is generated.
+
+## Analysis Set-up
+
+### Library Installation
+
+```{r cars}
+library(tidyverse)
+library(tidymodels)
+library(magrittr)
+library(lubridate)
+library(skimr)
+
+library(ggplot2)
+library(ggcorrplot)
+library(janitor)
+```
+
+### Raw Data Inport
+```{r}
+bikeshare = readr::read_csv("./data/austin_bikeshare_trips.csv", 
+                          col_names = TRUE) 
+
+weather = read.csv("./data/austin_weather.csv", 
+                        header = TRUE, stringsAsFactors = FALSE) %>%  
+  janitor::clean_names() %>%  
+  mutate(date = date %>%  
+           as_date())
+```
+
+```{r}
+bkshr = bikeshare %>% 
+  mutate(date = start_time %>%
+           as_date()) %>%
+  group_by(date) %>% 
+  summarise(trips = n()) %>%  
+  merge(weather, by = "date", 
+        all.x = T) %>%  
+  mutate(across(!c(events, date), as.numeric), 
+         events = case_when(events == " "~"no_event",
+                            T~events) %>% 
+           as.factor()) 
+```
+
+```{r}
+bkshr %>%  
+  skim()
+```
+
+Taking a look at PCA.
+```{r}
+bkshr_pca = bkshr %>%  
+  select(date, where(is.numeric), -trips) %>%
+  na.omit() 
+
+bkshr_pca_rec = recipe(~., bkshr_pca) %>%
+  step_normalize(all_numeric()) %>% 
+  step_medianimpute(all_numeric()) %>%
+  step_pca(all_numeric())
+
+bkshr_pca_rec %>%  
+  prep() %>%  
+  juice()
+  tidy(3)
+tidy()
+
+bkshr_pca_prep = bkshr_pca_rec %>%  
+  prep() 
+
+sdev = bkshr_pca_prep$steps[[1]]$sds
+sdev = bkshr_pca_prep$steps[[2]]$res$sdev
+percent_variation <- sdev^2 / sum(sdev^2)
+var_df <- data.frame(PC=paste0("PC",1:length(sdev)),
+                     var_explained=percent_variation,
+                     stringsAsFactors = FALSE)
+
+var_df %>%
+  mutate(PC = fct_inorder(PC)) %>%
+  ggplot(aes(x=PC,y=var_explained))+geom_col()
+
+install.packages("zoo")
+```
+
+```{r}
+names_glue_lag = "{.col}_lag_{.fn}" 
+fns_lag = purrr::map(c(1,7, 14), ~purrr::partial(dplyr::lag, n = .x))
+names_glue_rll = "{.col}_rll_{.fn}." 
+fns_rll = purrr::map(c(3,5,7, 14), ~purrr::partial(zoo::rollmean, k = .x, align = "right", fill = T))
+
+model_data = bkshr %>%  
+  dplyr::mutate(dplyr::across(trips, fns_lag, .names = names_glue_lag), 
+                dplyr::across(trips_lag_1 , fns_rll, .names = names_glue_rll)) %>%  
+  select(date, starts_with("trips"), everything()) %>%  
+  na.omit()
+```
+
+
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+yolo = model_data %>%  
+  pivot_longer(cols = contains("trips")) %>% 
+  ggplot() + 
+  geom_line(aes(date, value, color = name))
+
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+
+## Create Dat Model 
+```{r}
+bkshr_split = initial_time_split(model_data, prop = .8)
+bkshr_train = training(bkshr_split)
+bkshr_test = testing(bkshr_split)
+```
+
+```{r}
+folds = rsample::rolling_origin(bkshr_train, initial = 100)
+
+folds$splits[[1]] %>%  
+  analysis() 
+  
+
+folds$splits[[2]] %>%  
+  analysis()
+```
+
+```{r}
+model_rec = recipe(trips~., data = model_data) %>% 
+  step_date(date, features = c("dow", "month", "year")) %>%  
+  step_holiday(date) %>% 
+  step_normalize(all_numeric(), -all_outcomes(), -contains("date")) %>% 
+  step_corr(all_numeric(), -all_outcomes()) %>% 
+  step_dummy(all_nominal()) %>%  
+  step_nzv(all_predictors())
+```
+
+
+```{r}
+
+mdl_mars = mars(
+  num_terms = tune(),
+  prod_degree = tune(),
+  prune_method = "backward"
+) %>% 
+  set_engine("earth") %>% 
+  set_mode("regression") %>% 
+  translate()
+
+mars_wrkfl = workflow() %>%  
+  add_recipe(model_rec) %>%
+  add_model(mdl_mars)
+
+mars_wrkfl %>%  
+  parameters() %>%  
+  pull_dials_object("num_terms")
+  prod_degree()
+
+
+```
+
+
+
+
+```{r}
+grid = crossing(
+  num_terms = c(5, 10, 15, 20),
+  prod_degree = c(1, 2)
+)
+
+doParallel::registerDoParallel()
+
+
+
+tictoc::tic()
+# mars_train = mars_wrkfl %>%
+#   fit_resamples(
+#     resamples = folds,
+#     control = control_resamples(save_pred = TRUE, extract = get_model)
+#   )
+
+mars_tune = mars_wrkfl %>%
+  tune_grid(
+    resamples = folds,
+    grid = grid,
+    control = control_resamples(save_pred = TRUE, extract = get_model)
+  )
+tictoc::toc()
+tictoc::toc()
+
+```
+
+
+```{r}
+mars_train %>%  collect_metrics()
+
+  yolo = mars_train %>%  
+  collect_predictions() %>%  
+  pivot_longer(cols = c(.pred, trips)) %>% 
+  ggplot(aes(.row, value, color = name)) + 
+  geom_point() + 
+  geom_line()
+  
+  plotly::ggplotly(yolo)
+  
+  mars_train %>%  
+    show_best(metric = "rmse")
+  
+  
+mars_train$.extracts[[550]][".extracts"] %>%  
+  unnest()
+mars_train[796,]
+
+mars_tune %>% 
+  saveRDS("./rds/20200202_bikeshareDemand_mars_trained")
+  getwd()
+
+  mars_tune %>%  
+  collect_metrics() %>%  
+  filter(.metric == "rmse") %>%  
+  ggplot() + 
+  geom_line(aes(num_terms, mean, color = as.factor(prod_degree))) + 
+  ylim(0, NA)
+
+mars_final = mars_tune %>%
+  select_best() 
+
+mars_wrkfl_final = mars_wrkfl %>%
+  finalize_workflow(mars_final) 
+
+
+
+mars_fit %>%  
+  collect_metrics()
+
+mars_fit %>%  
+  pull(.predictions)
+
+mars_fit %>%  
+  fit(bkshr)
+
+pull_workflow_fit(mars_fit)$fit
+mars_wrkfl_final %>% 
+fit(bkshr)
+
+predict(final_model, new_data = new_woman)
+```
+
+
+```{r}
+mars_fit = mars_wrkfl %>%  
+  fit(bkshr_train)
+
+mars_fit %>%  show_model_info()
+
+yolo = bkshr_test %>%  
+  bind_cols(mars_fit %>%  
+  predict(bkshr_test)) %>%
+  pivot_longer(cols = c(trips, .pred)) %>% 
+  ggplot(aes(date, value, color = name)) + 
+  geom_line() + 
+  geom_point()
+
+plotly::ggplotly(yolo)
+
+bkshr_test %>%  
+  bind_cols(mars_fit %>%  
+  predict(bkshr_test)) %>%  
+  mutate(error = trips-.pred) %>%
+  ggplot() +
+  geom_point(aes(date, error))
+  rmse(truth = trips, estimate = .pred)
+  
+  bkshr_test %>%  
+  bind_cols(mars_fit %>%  
+  predict(bkshr_test)) %>%  
+  mutate(error = trips-.pred) %>%
+  ggplot() +
+  geom_histogram(aes(error), bins = 60)
+
+
+```
+
+
+
+
+
+
